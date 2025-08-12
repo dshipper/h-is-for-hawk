@@ -1,0 +1,8 @@
+# Exclude full text versions of the book
+*.pdf
+*.md
+*.txt
+h-is-for-hawk.*
+
+# Keep only the index.html file
+!index.html
