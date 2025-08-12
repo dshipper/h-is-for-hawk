@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>H is for Hawk — Structural Braid Analysis</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #141822;
+        --text: #e6e9ef;
+        --muted: #9aa4b2;
+        --accent: #5dd3ff;
+        --accent2: #ffd166;
+        --link: #9ed7ff;
+        --border: #222738;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text);
+        font: 17px/1.7 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      }
+      a { color: var(--link); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      header {
+        position: sticky; top: 0; z-index: 3;
+        background: rgba(15,17,21,0.85);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; gap: 16px;
+        padding: 10px 14px;
+      }
+      header h1 { font-size: 18px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+      .wrap { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100% - 56px); }
+      nav {
+        position: sticky; top: 56px; align-self: start; height: calc(100vh - 56px);
+        overflow: auto; border-right: 1px solid var(--border); background: var(--panel);
+        padding: 14px 12px;
+      }
+      nav h3 { margin: 10px 10px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+      nav ul { list-style: none; padding: 0; margin: 0; }
+      nav li { margin: 6px 4px; }
+      nav a { display: block; padding: 6px 8px; border-radius: 6px; }
+      nav a:hover { background: #1a1f2b; }
+
+      main { padding: 0; }
+      .main-inner { padding: 20px; }
+      .h-split { display: grid; grid-template-columns: 1fr; }
+      .analysis { padding: 20px; }
+      .book-pane { display: none; border-left: 1px solid var(--border); background: #0d1018; padding: 14px; overflow: auto; }
+      .book-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; position: sticky; top: 0; background: #0d1018; padding-bottom: 8px; }
+      .book-head h3 { margin: 6px 0; font-size: 14px; color: var(--muted); }
+      .book-controls { display: flex; gap: 8px; align-items: center; }
+      .book-controls input[type="search"] { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: #0c0f14; color: var(--text); }
+      .book-controls button { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: #1a1f2b; color: var(--text); cursor: pointer; }
+      .book-body { margin-top: 8px; }
+      pre#bookText { margin: 0; white-space: pre-wrap; word-wrap: break-word; font: 15px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; color: #dfe4ec; }
+      body.with-book .h-split { grid-template-columns: 1fr 1fr; }
+      body.with-book .book-pane { display: block; }
+      .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+      .controls input[type="search"] { flex: 1; min-width: 220px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: #0c0f14; color: var(--text); }
+      .controls button { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: #1a1f2b; color: var(--text); cursor: pointer; }
+      .controls button:hover { background: #22283a; }
+      .subcontrols { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 8px 0 22px; }
+      .legend { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); background: #161b27; font-size: 13px; color: var(--muted); }
+      .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+      .chip input { margin: 0; }
+
+      section { max-width: 980px; }
+      h2 { margin-top: 18px; }
+      h3 { margin-top: 18px; }
+      .muted { color: var(--muted); }
+
+      details { border: 1px solid var(--border); border-radius: 8px; margin: 14px 0; background: #0f1320; }
+      details > summary {
+        cursor: pointer; padding: 10px 12px; font-weight: 600; list-style: none; outline: none;
+      }
+      details[open] > summary { border-bottom: 1px solid var(--border); }
+      details .content { padding: 12px 14px; }
+      .badge { display: inline-block; font-size: 12px; padding: 2px 6px; border-radius: 999px; background: #1b2130; border: 1px solid var(--border); color: var(--muted); margin-left: 6px; }
+
+      mark.hl { background: #3a2f00; color: #ffe082; padding: 0 .1em; border-radius: 2px; }
+
+      .footer-note { color: var(--muted); font-size: 13px; margin-top: 28px; }
+
+      /* Readability helpers */
+      .tldr { padding: 10px 12px; border: 1px solid var(--border); background: #121728; border-radius: 8px; }
+      .split { display: grid; grid-template-columns: 1fr; gap: 16px; }
+      @media (min-width: 880px){ .split { grid-template-columns: 1fr 1fr; } }
+      .card { border: 1px solid var(--border); background: #0f1320; border-radius: 8px; padding: 10px 12px; }
+      .card h4 { margin: 6px 0 8px; font-size: 16px; }
+      .braid-item { transition: opacity .15s ease; border-left: 3px solid transparent; padding-left: 10px; }
+      .braid-item::marker { color: var(--muted); }
+      .dimmed { opacity: .35; }
+      .tagline { font-size: 13px; color: var(--muted); margin-top: -6px; margin-bottom: 10px; }
+      .deep summary { font-weight: 600; }
+      .note { font-size: 13px; color: var(--muted); }
+      .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); background: #1a1f2b; color: var(--muted); font-size: 12px; margin-right: 6px; }
+      /* braid colors */
+      .b-grief .swatch{ background:#ff6b6b; }
+      .b-hawk .swatch{ background:#66bb6a; }
+      .b-thw .swatch{ background:#64b5f6; }
+      .b-land .swatch{ background:#a1887f; }
+      .b-class .swatch{ background:#ba68c8; }
+      .b-father .swatch{ background:#ffa726; }
+      .b-psych .swatch{ background:#26c6da; }
+      /* item color accents by primary braid */
+      .c-grief { border-left-color: #ff6b6b; }
+      .c-hawk { border-left-color: #66bb6a; }
+      .c-thw { border-left-color: #64b5f6; }
+      .c-land { border-left-color: #a1887f; }
+      .c-class { border-left-color: #ba68c8; }
+      .c-father { border-left-color: #ffa726; }
+      .c-psych { border-left-color: #26c6da; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>H is for Hawk — Structural Braid Analysis</h1>
+      <div class="muted">by Dr. Rowan Peveril (persona)</div>
+    </header>
+    <div class="wrap">
+      <nav>
+        <h3>Contents</h3>
+        <ul>
+          <li><a href="#persona">Persona</a></li>
+          <li><a href="#macro">Macro-structure & Braids</a></li>
+          <li><a href="#technique">Weaving mechanics</a></li>
+          <li><a href="#part1">Part I analysis</a>
+            <ul>
+              <li><a href="#ch1">Ch. 1 — Patience</a></li>
+              <li><a href="#ch2">Ch. 2 — Lost</a></li>
+              <li><a href="#ch3">Ch. 3 — Small worlds</a></li>
+              <li><a href="#ch4">Ch. 4 — Mr White</a></li>
+            </ul>
+          </li>
+          <li><a href="#ledger">Seam & motif ledger</a></li>
+        </ul>
+        <h3>Utilities</h3>
+        <ul>
+          <li><a href="#search">Search / highlight</a></li>
+          <li><a href="#expand">Expand/Collapse all</a></li>
+          <li><a href="#book" id="openBook">Open source .md</a></li>
+        </ul>
+      </nav>
+      <main>
+        <div class="main-inner">
+        <div class="controls" id="search">
+          <input type="search" id="q" placeholder="Search within analysis (press Enter)…" />
+          <button id="doSearch" title="Find and highlight">Highlight</button>
+          <button id="clearSearch" title="Clear highlights">Clear</button>
+          <button id="expand" title="Open all sections">Expand all</button>
+          <button id="collapse" title="Close all sections">Collapse all</button>
+          <button id="toggleSplit" title="Toggle side-by-side view">Side-by-side</button>
+        </div>
+        <div class="subcontrols">
+          <div class="legend">
+            <span class="chip b-grief"><span class="swatch"></span><label><input type="checkbox" class="bf" value="grief"> Grief</label></span>
+            <span class="chip b-hawk"><span class="swatch"></span><label><input type="checkbox" class="bf" value="hawk"> Hawk-training</label></span>
+            <span class="chip b-thw"><span class="swatch"></span><label><input type="checkbox" class="bf" value="thw"> T. H. White</label></span>
+            <span class="chip b-land"><span class="swatch"></span><label><input type="checkbox" class="bf" value="land"> Landscape/History</label></span>
+            <span class="chip b-class"><span class="swatch"></span><label><input type="checkbox" class="bf" value="class"> Class/Culture</label></span>
+            <span class="chip b-father"><span class="swatch"></span><label><input type="checkbox" class="bf" value="father"> Father/Childhood</label></span>
+            <span class="chip b-psych"><span class="swatch"></span><label><input type="checkbox" class="bf" value="psych"> Psychology</label></span>
+          </div>
+          <span class="note">Tip: Check a braid to focus related bullets. Clear all to reset.</span>
+        </div>
+
+        <div class="h-split">
+        <div class="analysis">
+        <section id="persona">
+          <h2>Persona</h2>
+          <p><strong>Name and role:</strong> Dr. Rowan Peveril, narratologist and practicing austringer</p>
+          <ul>
+            <li>PhD in narratology; specialties in braided memoir forms, cognitive poetics, narrative temporality.</li>
+            <li>15+ years as an austringer; scholarship on falconry rhetoric, human–animal attunement, grief psychology.</li>
+            <li>Method: Braid Maps, Seam Notes, Multiscale Weave Analyses.</li>
+          </ul>
+        </section>
+
+        <section id="macro">
+          <h2>Macro-structure and primary braids</h2>
+          <ul>
+            <li>Two-part arc: Part I (descent, manning), Part II (flight, partial rehumanization).</li>
+            <li>Major braids: grief memoir; hawk-training phenomenology; T. H. White biography/critique; natural history & landscape; British identity/class; father/childhood; psychological descent/recovery.</li>
+          </ul>
+        </section>
+
+        <section id="technique">
+          <h2>Weaving mechanics across scales</h2>
+          <ul>
+            <li>Word-level: hawk lexicon doubles as grief lexicon (weight, line, bell, patience, invisibility).</li>
+            <li>Sentence-level: shifts between instructional, lyric, and shock-minimalist modes.</li>
+            <li>Paragraph-level: object-pivots (moss, feathers, binoculars) hinge time and braid shifts.</li>
+            <li>Chapter-level: calibrated returns to White; spacing to mirror identification and critique.</li>
+            <li>Part-level: seasonal/ethological arc mirrors psychological arc.</li>
+          </ul>
+        </section>
+
+        <section id="part1">
+          <h2>Part I — Extremely detailed analysis</h2>
+
+          <details id="ch1" open>
+            <summary>Chapter 1 — Patience <span class="badge">grief, landscape, hawk, father</span></summary>
+            <div class="content">
+              <div class="tldr braid-item" data-braids="grief,land,hawk,father">
+                <strong>TL;DR:</strong> A sleepless morning drive to the Brecklands leads to a rare sighting of a courting goshawk pair. A sparrowhawk triggers a memory of her father teaching “patience.” She pockets reindeer moss—later, she’s looking at it when the call about her father’s death comes.
+              </div>
+              <div class="split">
+                <div class="card">
+                  <h4>Key beats (what happens)</h4>
+                  <ul>
+                    <li class="braid-item" data-braids="grief,psych">Restless, wired dawn; she drives to the forest to steady her mind.</li>
+                    <li class="braid-item" data-braids="land">Brecklands sketched as haunted, human-made wildness (nukes, forestry, ghosts).</li>
+                    <li class="braid-item" data-braids="hawk">Field note on goshawks vs sparrowhawks; why people misidentify.</li>
+                    <li class="braid-item" data-braids="hawk,land">She sees a goshawk pair soaring and vanishing into trees.</li>
+                    <li class="braid-item" data-braids="father">Memory: her dad’s lesson on patience while birdwatching.</li>
+                    <li class="braid-item" data-braids="land">Takes reindeer moss as a token.</li>
+                    <li class="braid-item" data-braids="grief,father">Three weeks later, the phone call about her father’s death arrives as she looks at the moss.</li>
+                  </ul>
+                </div>
+                <div class="card">
+                  <h4>Why it matters</h4>
+                  <ul>
+                    <li class="braid-item" data-braids="father,grief">Establishes “patience” as the father’s gift and a core coping method.</li>
+                    <li class="braid-item" data-braids="land">Frames wildness as co-produced by humans and history.</li>
+                    <li class="braid-item" data-braids="hawk,grief">Introduces the “vanishing” motif (hawks disappear; so does the old life after loss).</li>
+                  </ul>
+                </div>
+              </div>
+              <details class="deep">
+                <summary>Deep dive (seams and micro-weave)</summary>
+                <div class="content">
+                  <ul>
+                    <li class="braid-item" data-braids="hawk">“Books don’t work” undercuts armchair knowledge; field truth will govern the story.</li>
+                    <li class="braid-item" data-braids="psych,land">Deer-like movement shows body-led attention overtaking academic habits.</li>
+                    <li class="braid-item" data-braids="land">WWII bomb crater and Neolithic flints layer time; grief will be layered too.</li>
+                    <li class="braid-item" data-braids="hawk,land">Goshawk history: extinction and falconers’ re-introduction—“the wild can be human work.”</li>
+                    <li class="braid-item" data-braids="father">Sparrowhawk → father memory pivot; photography patience as training analogue.</li>
+                    <li class="braid-item" data-braids="grief,father">Reindeer moss as patience made manifest; becomes the hinge into the death call.</li>
+                  </ul>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details id="ch2" open>
+            <summary>Chapter 2 — Lost <span class="badge">grief, hawk</span></summary>
+            <div class="content">
+              <div class="tldr braid-item" data-braids="grief,hawk">
+                <strong>TL;DR:</strong> She learns of her father’s death, reels through shock and social autopilot, and clings to a memory of handling and releasing a grounded goshawk. That vanishing becomes a recurring dream and points her toward getting a hawk.
+              </div>
+              <div class="split">
+                <div class="card">
+                  <h4>Key beats</h4>
+                  <ul>
+                    <li class="braid-item" data-braids="grief,psych">Phone call; body folds; “world already gone.”</li>
+                    <li class="braid-item" data-braids="grief">Keeps the dinner booking; can’t eat; small social ruptures.</li>
+                    <li class="braid-item" data-braids="grief,psych">Early grief textures: time slows, things feel far away, awareness turns inward.</li>
+                    <li class="braid-item" data-braids="hawk">Earlier memory: two women check a grounded goshawk and release it.</li>
+                    <li class="braid-item" data-braids="hawk,psych">The hawk vanishes “slantwise” into nothing; the image fixes as a dream.</li>
+                  </ul>
+                </div>
+                <div class="card">
+                  <h4>Why it matters</h4>
+                  <ul>
+                    <li class="braid-item" data-braids="hawk,grief">Explains why training a hawk becomes necessary, not optional.</li>
+                    <li class="braid-item" data-braids="grief,psych">Names the dissociative feel the book will keep returning to and treating.</li>
+                  </ul>
+                </div>
+              </div>
+              <details class="deep">
+                <summary>Deep dive (seams and micro-weave)</summary>
+                <div class="content">
+                  <ul>
+                    <li class="braid-item" data-braids="grief">Minimalist syntax conveys shock; repetition (“world… gone”) enacts rupture.</li>
+                    <li class="braid-item" data-braids="hawk">Handling checklist (wings, collarbone, talons, eyes) foreshadows training tactility.</li>
+                    <li class="braid-item" data-braids="hawk,grief">The release’s vanishing mirrors the goshawk pair’s disappearance in Ch. 1.</li>
+                  </ul>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details id="ch3" open>
+            <summary>Chapter 3 — Small worlds <span class="badge">class, ethics, grief</span></summary>
+            <div class="content">
+              <div class="tldr braid-item" data-braids="class,grief,hawk">
+                <strong>TL;DR:</strong> As a child she enters the world of falconry, feels out of place, witnesses a kill, and learns how goshawks can vanish into another world. She prefers falcons—until grief changes her.
+              </div>
+              <div class="split">
+                <div class="card">
+                  <h4>Key beats</h4>
+                  <ul>
+                    <li class="braid-item" data-braids="class,father">Parents drop her at a meet; men with tweed and posh vowels signal a gate-kept culture.</li>
+                    <li class="braid-item" data-braids="hawk,ethics">First goshawk kill; takes copper feathers as a relic of beauty within violence.</li>
+                    <li class="braid-item" data-braids="hawk,psych">Hawks refuse to return; sit in trees “in another world”; handlers wait below.</li>
+                    <li class="braid-item" data-braids="class">Falcons vs hawks: falcons need land/privilege; hawks are coded rough and foreign.</li>
+                    <li class="braid-item" data-braids="ethics,hawk">“Murder sorts them out” trainer remark; she recoils.</li>
+                    <li class="braid-item" data-braids="grief,psych">Now, post-loss, her house feels submarine—pressure everywhere.</li>
+                    <li class="braid-item" data-braids="grief">Pivot: “The world had changed, and so had I.”</li>
+                  </ul>
+                </div>
+                <div class="card">
+                  <h4>Why it matters</h4>
+                  <ul>
+                    <li class="braid-item" data-braids="class">Shows falconry’s class codes; why hawks align with outsiders.</li>
+                    <li class="braid-item" data-braids="hawk,psych">Establishes “invisibility” motif: hawks in a parallel world—she will join it.</li>
+                    <li class="braid-item" data-braids="ethics">Flags the ethical tension around killing as training.</li>
+                  </ul>
+                </div>
+              </div>
+              <details class="deep">
+                <summary>Deep dive (seams and micro-weave)</summary>
+                <div class="content">
+                  <ul>
+                    <li class="braid-item" data-braids="hawk">Relic-making (feathers) echoes Ch. 1 reindeer moss—objects anchor meaning.</li>
+                    <li class="braid-item" data-braids="hawk,psych">Handlers’ waiting ritualizes respect for the hawk’s otherness.</li>
+                    <li class="braid-item" data-braids="class">Historical quotes (Blaine, de la Bigne) show centuries of hawk stigma.</li>
+                  </ul>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details id="ch4" open>
+            <summary>Chapter 4 — Mr White <span class="badge">THW, trauma, projection</span></summary>
+            <div class="content">
+              <div class="tldr braid-item" data-braids="thw,psych,land">
+                <strong>TL;DR:</strong> We meet T. H. White: dazzling at Stowe but driven by fear and childhood trauma. He displaces love into landscape, performs upper-class codes, and writes about hawks with pain and wonder. The narrator admits he “haunts” her training.
+              </div>
+              <div class="split">
+                <div class="card">
+                  <h4>Key beats</h4>
+                  <ul>
+                    <li class="braid-item" data-braids="thw,psych">Therapy hopes to cure everything; swings between elation and dread.</li>
+                    <li class="braid-item" data-braids="thw">Public bravado at school; private forbidding standards.</li>
+                    <li class="braid-item" data-braids="thw,psych">Childhood India: violence between parents; lifelong fear.</li>
+                    <li class="braid-item" data-braids="thw">Sylvia Townsend Warner chosen to shape his legacy; “imminent haunt.”</li>
+                    <li class="braid-item" data-braids="land,thw">“Falling in love with a countryside” as safe, non-reciprocal love.</li>
+                    <li class="braid-item" data-braids="class,thw">He decides to “be a toff”; audits dress and manners to avoid rebuke.</li>
+                    <li class="braid-item" data-braids="thw,ethics">Violence framed as self-protection; projection dynamics foreshadow The Goshawk.</li>
+                  </ul>
+                </div>
+                <div class="card">
+                  <h4>Why it matters</h4>
+                  <ul>
+                    <li class="braid-item" data-braids="thw,hawk">White becomes a counter-braid to the narrator: a mirror and a caution.</li>
+                    <li class="braid-item" data-braids="ethics,psych">Introduces the ethical axis: what we put into hawks to manage our own pain.</li>
+                  </ul>
+                </div>
+              </div>
+              <details class="deep">
+                <summary>Deep dive (seams and micro-weave)</summary>
+                <div class="content">
+                  <ul>
+                    <li class="braid-item" data-braids="thw">Boys’ awe vs his disdain: charisma masking fragility.</li>
+                    <li class="braid-item" data-braids="thw,land">Landscape love as emotional displacement—rhymes with narrator’s nature turn.</li>
+                    <li class="braid-item" data-braids="class">Hunting diaries’ negative phrasing reveal core unbelonging.</li>
+                    <li class="braid-item" data-braids="thw">Childlike wonder (e.g., magpie simile) preserves his redeeming thread.</li>
+                  </ul>
+                </div>
+              </details>
+            </div>
+          </details>
+
+        </section>
+
+        <section id="ledger">
+          <h2>Seam and motif ledger (to this point)</h2>
+          <ul>
+            <li>Vanishing: goshawks into wood; release “slantwise”; grief’s disappearing world; hawks not seeing humans.</li>
+            <li>Relics/tokens: reindeer moss (patience fuse), pheasant feathers (death/beauty), binoculars (father’s vision).</li>
+            <li>Patience: father’s method → field-watching → training ethos.</li>
+            <li>Wild as human work: reintroductions; ethical complexities of trained wildness.</li>
+            <li>Class/codes: falcons as privilege; hawks as outcast—chosen in outcasted grief.</li>
+          </ul>
+          <p class="footer-note">Note: This page currently includes detailed analysis for Part I, Chapters 1–4. I can extend the same level of detail through all remaining chapters on request, and the page will grow with the content.</p>
+        </section>
+
+        </div> <!-- analysis -->
+        <aside class="book-pane" id="bookPane">
+          <div class="book-head">
+            <h3>H is for Hawk — Source (.md)</h3>
+            <div class="book-controls">
+              <input type="search" id="bookQ" placeholder="Search text" />
+              <button id="bookFind">Highlight</button>
+              <button id="bookClear">Clear</button>
+              <button id="openBook2" title="Open .md in new tab">Open</button>
+            </div>
+          </div>
+          <div class="book-body">
+            <pre id="bookText">Loading…</pre>
+          </div>
+        </aside>
+        </div> <!-- h-split -->
+        </div>
+      </main>
+    </div>
+    <script>
+      function clearHighlights(root=document){
+        root.querySelectorAll('mark.hl').forEach(m => {
+          const parent = m.parentNode;
+          parent.replaceChild(document.createTextNode(m.textContent), m);
+          parent.normalize();
+        });
+      }
+      function highlight(term){
+        clearHighlights();
+        if(!term) return;
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode(node){
+            if(!node.parentElement) return NodeFilter.FILTER_REJECT;
+            const t = node.textContent;
+            if(!t || !t.trim()) return NodeFilter.FILTER_REJECT;
+            if(['SCRIPT','STYLE','NAV','HEADER'].includes(node.parentElement.tagName)) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+        const rgx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+        const nodes = [];
+        while(walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach(node => {
+          const frag = document.createDocumentFragment();
+          let last = 0; const text = node.textContent; let m;
+          while((m = rgx.exec(text))){
+            const pre = text.slice(last, m.index); if(pre) frag.appendChild(document.createTextNode(pre));
+            const mark = document.createElement('mark'); mark.className = 'hl'; mark.textContent = m[0];
+            frag.appendChild(mark); last = m.index + m[0].length;
+          }
+          const rest = text.slice(last); if(rest) frag.appendChild(document.createTextNode(rest));
+          if(frag.childNodes.length){ node.parentNode.replaceChild(frag, node); }
+        });
+      }
+      function setOpenAll(open){
+        document.querySelectorAll('details').forEach(d => d.open = open);
+      }
+      document.getElementById('doSearch').addEventListener('click', () => highlight(document.getElementById('q').value.trim()));
+      document.getElementById('clearSearch').addEventListener('click', () => { document.getElementById('q').value = ''; clearHighlights(); });
+      document.getElementById('q').addEventListener('keydown', (e) => { if(e.key==='Enter'){ e.preventDefault(); highlight(e.target.value.trim()); }});
+      document.getElementById('expand').addEventListener('click', () => setOpenAll(true));
+      document.getElementById('collapse').addEventListener('click', () => setOpenAll(false));
+      document.getElementById('openBook').addEventListener('click', (e) => {
+        e.preventDefault(); window.open('h-is-for-hawk.md', '_blank');
+      });
+      document.getElementById('openBook2').addEventListener('click', () => window.open('h-is-for-hawk.md', '_blank'));
+      // Braid filtering
+      const boxes = Array.from(document.querySelectorAll('.bf'));
+      function applyBraidFilter(){
+        const active = boxes.filter(b=>b.checked).map(b=>b.value);
+        const items = document.querySelectorAll('.braid-item');
+        if(active.length===0){ items.forEach(el=>el.classList.remove('dimmed')); return; }
+        items.forEach(el=>{
+          const tags = (el.getAttribute('data-braids')||'').split(/\s*,\s*/);
+          const on = tags.some(t=>active.includes(t));
+          el.classList.toggle('dimmed', !on);
+        });
+      }
+      boxes.forEach(b=>b.addEventListener('change', applyBraidFilter));
+      applyBraidFilter();
+      // Colorize braid items by primary tag
+      document.querySelectorAll('.braid-item').forEach(el => {
+        const tags = (el.getAttribute('data-braids')||'').split(/\s*,\s*/).filter(Boolean);
+        if(tags.length){ el.classList.add('c-'+tags[0]); }
+      });
+      // Side-by-side toggle
+      const toggleBtn = document.getElementById('toggleSplit');
+      toggleBtn.addEventListener('click', () => {
+        document.body.classList.toggle('with-book');
+      });
+      // Load book markdown into right pane
+      const bookEl = document.getElementById('bookText');
+      fetch('h-is-for-hawk.md').then(r=>r.text()).then(t => {
+        // Light normalization: replace form-feeds with newlines
+        bookEl.textContent = t.replace(/\f/g, '\n\n');
+      }).catch(() => { bookEl.textContent = 'Unable to load h-is-for-hawk.md'; });
+      // Book pane search (scoped highlight)
+      function clearHighlightsIn(root){
+        root.querySelectorAll('mark.hl').forEach(m => {
+          const parent = m.parentNode;
+          parent.replaceChild(document.createTextNode(m.textContent), m);
+          parent.normalize();
+        });
+      }
+      function highlightIn(root, term){
+        clearHighlightsIn(root);
+        if(!term) return;
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+          acceptNode(node){
+            if(!node.parentElement) return NodeFilter.FILTER_REJECT;
+            const t = node.textContent;
+            if(!t || !t.trim()) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+        const rgx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+        const nodes = [];
+        while(walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach(node => {
+          const frag = document.createDocumentFragment();
+          let last = 0; const text = node.textContent; let m;
+          while((m = rgx.exec(text))){
+            const pre = text.slice(last, m.index); if(pre) frag.appendChild(document.createTextNode(pre));
+            const mark = document.createElement('mark'); mark.className = 'hl'; mark.textContent = m[0];
+            frag.appendChild(mark); last = m.index + m[0].length;
+          }
+          const rest = text.slice(last); if(rest) frag.appendChild(document.createTextNode(rest));
+          if(frag.childNodes.length){ node.parentNode.replaceChild(frag, node); }
+        });
+      }
+      document.getElementById('bookFind').addEventListener('click', () => highlightIn(document.getElementById('bookText'), document.getElementById('bookQ').value.trim()));
+      document.getElementById('bookClear').addEventListener('click', () => { document.getElementById('bookQ').value=''; clearHighlightsIn(document.getElementById('bookText')); });
+    </script>
+  </body>
+  </html>
